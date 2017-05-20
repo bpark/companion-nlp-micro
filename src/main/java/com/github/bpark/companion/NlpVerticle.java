@@ -1,3 +1,18 @@
+/*
+ * Copyright 2017 Kurt Sparber
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.github.bpark.companion;
 
 import io.vertx.core.Handler;
@@ -30,6 +45,11 @@ public class NlpVerticle extends AbstractVerticle {
 
     private static final Logger logger = LoggerFactory.getLogger(NlpVerticle.class);
 
+    private static final String TOKEN_BINARY = "/nlp/en-token.bin";
+    private static final String NER_PERSON_BINARY = "/nlp/en-ner-person.bin";
+    private static final String POS_MAXENT_BINARY = "/nlp/en-pos-maxent.bin";
+    private static final String SENT_BINARY = "/nlp/en-sent.bin";
+
     private Tokenizer tokenizer;
     private NameFinderME nameFinder;
     private POSTaggerME posTagger;
@@ -50,7 +70,7 @@ public class NlpVerticle extends AbstractVerticle {
     }
 
     private void initTokenizer() {
-        try (InputStream modelInToken = NlpVerticle.class.getResourceAsStream("/nlp/en-token.bin")) {
+        try (InputStream modelInToken = NlpVerticle.class.getResourceAsStream(TOKEN_BINARY)) {
             TokenizerModel modelToken = new TokenizerModel(modelInToken);
             tokenizer = new TokenizerME(modelToken);
         } catch (IOException e) {
@@ -59,7 +79,7 @@ public class NlpVerticle extends AbstractVerticle {
     }
 
     private void initNameFinder() {
-        try (InputStream modelIn = NlpVerticle.class.getResourceAsStream("/nlp/en-ner-person.bin")) {
+        try (InputStream modelIn = NlpVerticle.class.getResourceAsStream(NER_PERSON_BINARY)) {
             TokenNameFinderModel model = new TokenNameFinderModel(modelIn);
             nameFinder = new NameFinderME(model);
         } catch (IOException e) {
@@ -68,7 +88,7 @@ public class NlpVerticle extends AbstractVerticle {
     }
 
     private void initPosTagger() {
-        try (InputStream modelIn = NlpVerticle.class.getResourceAsStream("/nlp/en-pos-maxent.bin")) {
+        try (InputStream modelIn = NlpVerticle.class.getResourceAsStream(POS_MAXENT_BINARY)) {
             POSModel model = new POSModel(modelIn);
             posTagger = new POSTaggerME(model);
         } catch (IOException e) {
@@ -77,7 +97,7 @@ public class NlpVerticle extends AbstractVerticle {
     }
 
     private void initSentenceDetector() {
-        try (InputStream modelIn = NlpVerticle.class.getResourceAsStream("/nlp/en-sent.bin")) {
+        try (InputStream modelIn = NlpVerticle.class.getResourceAsStream(SENT_BINARY)) {
             SentenceModel model = new SentenceModel(modelIn);
             sentenceDetectorME = new SentenceDetectorME(model);
         } catch (IOException e) {
