@@ -13,26 +13,34 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.github.bpark.companion;
+package com.github.bpark.companion.model;
 
-/**
- * @author ksr
- */
-public enum NlpAddresses {
+import java.util.List;
 
-    ANLAYZE("nlp.analyze"),
-    TOKENS("nlp.tokens"),
-    POSTAGGING("nlp.postagging"),
-    SENTENCES("nlp.sentences"),
-    PERSONNAME("nlp.personname");
+public class Sentence {
 
-    private String address;
+    private String[] tokens;
 
-    NlpAddresses(String address) {
-        this.address = address;
+    private String[] posTags;
+
+    private List<PersonName> personNames;
+
+
+    public Sentence(String[] tokens, String[] posTags, List<PersonName> personNames) {
+        this.tokens = tokens;
+        this.posTags = posTags;
+        this.personNames = personNames;
     }
 
-    public String getAddress() {
-        return address;
+    public String[] getTokens() {
+        return tokens;
+    }
+
+    public String[] getPosTags() {
+        return posTags;
+    }
+
+    public List<PersonName> getPersonNames() {
+        return personNames;
     }
 }

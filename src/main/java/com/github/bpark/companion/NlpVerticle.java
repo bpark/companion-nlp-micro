@@ -15,10 +15,15 @@
  */
 package com.github.bpark.companion;
 
-import io.vertx.core.Handler;
+import com.github.bpark.companion.codecs.AnalyzedTextCodec;
+import com.github.bpark.companion.codecs.StringArrayCodec;
+import com.github.bpark.companion.model.AnalyzedText;
+import com.github.bpark.companion.model.PersonName;
+import com.github.bpark.companion.model.Sentence;
 import io.vertx.rxjava.core.AbstractVerticle;
 import io.vertx.rxjava.core.eventbus.EventBus;
 import io.vertx.rxjava.core.eventbus.Message;
+import io.vertx.rxjava.core.eventbus.MessageConsumer;
 import opennlp.tools.namefind.NameFinderME;
 import opennlp.tools.namefind.TokenNameFinderModel;
 import opennlp.tools.postag.POSModel;
@@ -31,12 +36,15 @@ import opennlp.tools.tokenize.TokenizerModel;
 import opennlp.tools.util.Span;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import rx.Observable;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * @author ksr
@@ -58,6 +66,9 @@ public class NlpVerticle extends AbstractVerticle {
     @Override
     public void start() throws Exception {
 
+        this.vertx.eventBus().getDelegate().registerDefaultCodec(String[].class, new StringArrayCodec());
+        this.vertx.eventBus().getDelegate().registerDefaultCodec(AnalyzedText.class, new AnalyzedTextCodec());
+
         initTokenizer();
         initNameFinder();
         initPosTagger();
@@ -67,6 +78,7 @@ public class NlpVerticle extends AbstractVerticle {
         registerNameFinder();
         registerPosTagger();
         registerSentenceDetector();
+        registerFullAnalyzer();
     }
 
     private void initTokenizer() {
@@ -109,7 +121,9 @@ public class NlpVerticle extends AbstractVerticle {
 
         EventBus eventBus = vertx.eventBus();
 
-        eventBus.consumer(NlpAddresses.TOKENS.getAddress(), (Handler<Message<String>>) message -> {
+        MessageConsumer<String> consumer = eventBus.consumer(NlpAddresses.TOKENS.getAddress());
+        Observable<Message<String>> observable = consumer.toObservable();
+        observable.subscribe(message -> {
             String sentence = message.body();
             String[] tokens = tokenizer.tokenize(sentence);
 
@@ -124,30 +138,12 @@ public class NlpVerticle extends AbstractVerticle {
 
         EventBus eventBus = vertx.eventBus();
 
-        eventBus.consumer(NlpAddresses.PERSONNAME.getAddress(), (Handler<Message<String[]>>) message -> {
+        MessageConsumer<String[]> consumer = eventBus.consumer(NlpAddresses.PERSONNAME.getAddress());
+        Observable<Message<String[]>> observable = consumer.toObservable();
+        observable.subscribe(message -> {
             String[] tokens = message.body();
 
-            List<PersonName> names = new ArrayList<>();
-
-            Span nameSpans[] = nameFinder.find(tokens);
-            double[] spanProbs = nameFinder.probs(nameSpans);
-
-
-            for (int i = 0; i < nameSpans.length; i++) {
-                Span nameSpan = nameSpans[i];
-                int start = nameSpan.getStart();
-                int end = nameSpan.getEnd() - 1;
-                String name;
-                if (start == end) {
-                    name = tokens[start];
-                } else {
-                    name = tokens[start] + " " + tokens[end];
-                }
-                double probability = spanProbs[i];
-                String[] nameTokens = Arrays.copyOfRange(tokens, start, end + 1);
-
-                names.add(new PersonName(name, nameTokens, probability));
-            }
+            List<PersonName> names = findNames(tokens);
 
             message.reply(names);
         });
@@ -158,7 +154,9 @@ public class NlpVerticle extends AbstractVerticle {
 
         EventBus eventBus = vertx.eventBus();
 
-        eventBus.consumer(NlpAddresses.POSTAGGING.getAddress(), (Handler<Message<String[]>>) message -> {
+        MessageConsumer<String[]> consumer = eventBus.consumer(NlpAddresses.POSTAGGING.getAddress());
+        Observable<Message<String[]>> observable = consumer.toObservable();
+        observable.subscribe(message -> {
             String[] tokens = message.body();
             String[] tags = posTagger.tag(tokens);
 
@@ -173,8 +171,13 @@ public class NlpVerticle extends AbstractVerticle {
 
         EventBus eventBus = vertx.eventBus();
 
-        eventBus.consumer(NlpAddresses.SENTENCES.getAddress(), (Handler<Message<String>>) message -> {
+        MessageConsumer<String> consumer = eventBus.consumer(NlpAddresses.SENTENCES.getAddress());
+        Observable<Message<String>> observable = consumer.toObservable();
+        observable.subscribe(message -> {
             String messageBody = message.body();
+
+            logger.info("text to analyze for sentences: {}", messageBody);
+
             String[] sentences = sentenceDetectorME.sentDetect(messageBody);
 
             logger.info("evaluated sentences: {}", Arrays.asList(sentences));
@@ -182,6 +185,60 @@ public class NlpVerticle extends AbstractVerticle {
             message.reply(sentences);
         });
 
+    }
+
+    private void registerFullAnalyzer() {
+
+        EventBus eventBus = vertx.eventBus();
+
+        MessageConsumer<String> consumer = eventBus.consumer(NlpAddresses.ANLAYZE.getAddress());
+        Observable<Message<String>> observable = consumer.toObservable();
+        observable.subscribe(message -> {
+            String messageBody = message.body();
+
+            logger.info("text to analyze for sentences: {}", messageBody);
+
+            String[] sentences = sentenceDetectorME.sentDetect(messageBody);
+
+            List<Sentence> analyzedSentences = Stream.of(sentences).map(s -> {
+                String[] tokens = tokenizer.tokenize(s);
+                String[] posTags = posTagger.tag(tokens);
+                List<PersonName> names = findNames(tokens);
+
+                return new Sentence(tokens, posTags, names);
+            }).collect(Collectors.toList());
+
+            logger.info("evaluated sentences: {}", Arrays.asList(sentences));
+
+            message.reply(new AnalyzedText(analyzedSentences));
+        });
+
+    }
+
+    private List<PersonName> findNames(String[] tokens) {
+        List<PersonName> names = new ArrayList<>();
+
+        Span nameSpans[] = nameFinder.find(tokens);
+        double[] spanProbs = nameFinder.probs(nameSpans);
+
+
+        for (int i = 0; i < nameSpans.length; i++) {
+            Span nameSpan = nameSpans[i];
+            int start = nameSpan.getStart();
+            int end = nameSpan.getEnd() - 1;
+            String name;
+            if (start == end) {
+                name = tokens[start];
+            } else {
+                name = tokens[start] + " " + tokens[end];
+            }
+            double probability = spanProbs[i];
+            String[] nameTokens = Arrays.copyOfRange(tokens, start, end + 1);
+
+            names.add(new PersonName(name, nameTokens, probability));
+        }
+
+        return names;
     }
 
 }
