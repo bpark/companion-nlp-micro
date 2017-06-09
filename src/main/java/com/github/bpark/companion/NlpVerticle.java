@@ -15,11 +15,10 @@
  */
 package com.github.bpark.companion;
 
-import com.github.bpark.companion.codecs.AnalyzedTextCodec;
-import com.github.bpark.companion.codecs.StringArrayCodec;
 import com.github.bpark.companion.model.AnalyzedText;
 import com.github.bpark.companion.model.PersonName;
 import com.github.bpark.companion.model.Sentence;
+import io.vertx.core.json.Json;
 import io.vertx.rxjava.core.AbstractVerticle;
 import io.vertx.rxjava.core.eventbus.EventBus;
 import io.vertx.rxjava.core.eventbus.Message;
@@ -47,11 +46,18 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
+ * Verticle to perform a full nlp analysis.
+ *
+ * The verticle initializes the openlnp trained models and listens on the eventbus for text to analyze.
+ * The result contains a list of analyzed sentences.
+ *
  * @author ksr
  */
 public class NlpVerticle extends AbstractVerticle {
 
     private static final Logger logger = LoggerFactory.getLogger(NlpVerticle.class);
+
+    private static final String ADDRESS = "nlp.analyze";
 
     private static final String TOKEN_BINARY = "/nlp/en-token.bin";
     private static final String NER_PERSON_BINARY = "/nlp/en-ner-person.bin";
@@ -66,19 +72,12 @@ public class NlpVerticle extends AbstractVerticle {
     @Override
     public void start() throws Exception {
 
-        this.vertx.eventBus().getDelegate().registerDefaultCodec(String[].class, new StringArrayCodec());
-        this.vertx.eventBus().getDelegate().registerDefaultCodec(AnalyzedText.class, new AnalyzedTextCodec());
-
         initTokenizer();
         initNameFinder();
         initPosTagger();
         initSentenceDetector();
 
-        registerTokenizer();
-        registerNameFinder();
-        registerPosTagger();
-        registerSentenceDetector();
-        registerFullAnalyzer();
+        registerAnalyzer();
     }
 
     private void initTokenizer() {
@@ -117,81 +116,11 @@ public class NlpVerticle extends AbstractVerticle {
         }
     }
 
-    private void registerTokenizer() {
+    private void registerAnalyzer() {
 
         EventBus eventBus = vertx.eventBus();
 
-        MessageConsumer<String> consumer = eventBus.consumer(NlpAddresses.TOKENS.getAddress());
-        Observable<Message<String>> observable = consumer.toObservable();
-        observable.subscribe(message -> {
-            String sentence = message.body();
-            String[] tokens = tokenizer.tokenize(sentence);
-
-            logger.info("evaluated tokens: {}", Arrays.asList(tokens));
-
-            message.reply(tokens);
-        });
-
-    }
-
-    private void registerNameFinder() {
-
-        EventBus eventBus = vertx.eventBus();
-
-        MessageConsumer<String[]> consumer = eventBus.consumer(NlpAddresses.PERSONNAME.getAddress());
-        Observable<Message<String[]>> observable = consumer.toObservable();
-        observable.subscribe(message -> {
-            String[] tokens = message.body();
-
-            List<PersonName> names = findNames(tokens);
-
-            message.reply(names);
-        });
-
-    }
-
-    private void registerPosTagger() {
-
-        EventBus eventBus = vertx.eventBus();
-
-        MessageConsumer<String[]> consumer = eventBus.consumer(NlpAddresses.POSTAGGING.getAddress());
-        Observable<Message<String[]>> observable = consumer.toObservable();
-        observable.subscribe(message -> {
-            String[] tokens = message.body();
-            String[] tags = posTagger.tag(tokens);
-
-            logger.info("pos tagged: {}", Arrays.asList(tags));
-
-            message.reply(tags);
-        });
-
-    }
-
-    private void registerSentenceDetector() {
-
-        EventBus eventBus = vertx.eventBus();
-
-        MessageConsumer<String> consumer = eventBus.consumer(NlpAddresses.SENTENCES.getAddress());
-        Observable<Message<String>> observable = consumer.toObservable();
-        observable.subscribe(message -> {
-            String messageBody = message.body();
-
-            logger.info("text to analyze for sentences: {}", messageBody);
-
-            String[] sentences = sentenceDetectorME.sentDetect(messageBody);
-
-            logger.info("evaluated sentences: {}", Arrays.asList(sentences));
-
-            message.reply(sentences);
-        });
-
-    }
-
-    private void registerFullAnalyzer() {
-
-        EventBus eventBus = vertx.eventBus();
-
-        MessageConsumer<String> consumer = eventBus.consumer(NlpAddresses.ANLAYZE.getAddress());
+        MessageConsumer<String> consumer = eventBus.consumer(ADDRESS);
         Observable<Message<String>> observable = consumer.toObservable();
         observable.subscribe(message -> {
             String messageBody = message.body();
@@ -210,7 +139,7 @@ public class NlpVerticle extends AbstractVerticle {
 
             logger.info("evaluated sentences: {}", Arrays.asList(sentences));
 
-            message.reply(new AnalyzedText(analyzedSentences));
+            message.reply(Json.encode(new AnalyzedText(analyzedSentences)));
         });
 
     }
