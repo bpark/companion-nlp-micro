@@ -19,6 +19,8 @@ import java.util.List;
 
 public class Sentence {
 
+    private String raw;
+
     private String[] tokens;
 
     private String[] posTags;
@@ -26,10 +28,15 @@ public class Sentence {
     private List<PersonName> personNames;
 
 
-    public Sentence(String[] tokens, String[] posTags, List<PersonName> personNames) {
+    public Sentence(String raw, String[] tokens, String[] posTags, List<PersonName> personNames) {
+        this.raw = raw;
         this.tokens = tokens;
         this.posTags = posTags;
         this.personNames = personNames;
+    }
+
+    public String getRaw() {
+        return raw;
     }
 
     public String[] getTokens() {

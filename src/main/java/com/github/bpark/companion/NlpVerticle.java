@@ -134,7 +134,7 @@ public class NlpVerticle extends AbstractVerticle {
                 String[] posTags = posTagger.tag(tokens);
                 List<PersonName> names = findNames(tokens);
 
-                return new Sentence(tokens, posTags, names);
+                return new Sentence(s, tokens, posTags, names);
             }).collect(Collectors.toList());
 
             logger.info("evaluated sentences: {}", Arrays.asList(sentences));
