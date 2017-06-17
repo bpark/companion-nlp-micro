@@ -57,6 +57,9 @@ public class NlpVerticle extends AbstractVerticle {
 
     private static final Logger logger = LoggerFactory.getLogger(NlpVerticle.class);
 
+    private static final String MESSAGE_KEY = "message";
+    private static final String NLP_KEY = "nlp";
+
     private static final String ADDRESS = "nlp.analyze";
 
     private static final String TOKEN_BINARY = "/nlp/en-token.bin";
@@ -122,24 +125,29 @@ public class NlpVerticle extends AbstractVerticle {
 
         MessageConsumer<String> consumer = eventBus.consumer(ADDRESS);
         Observable<Message<String>> observable = consumer.toObservable();
+
         observable.subscribe(message -> {
-            String messageBody = message.body();
 
-            logger.info("text to analyze for sentences: {}", messageBody);
+            String id = message.body();
 
-            String[] sentences = sentenceDetectorME.sentDetect(messageBody);
+            readMessage(id).flatMap(content -> {
+                logger.info("text to analyze for sentences: {}", content);
 
-            List<Sentence> analyzedSentences = Stream.of(sentences).map(s -> {
-                String[] tokens = tokenizer.tokenize(s);
-                String[] posTags = posTagger.tag(tokens);
-                List<PersonName> names = findNames(tokens);
+                String[] sentences = sentenceDetectorME.sentDetect(content);
 
-                return new Sentence(s, tokens, posTags, names);
-            }).collect(Collectors.toList());
+                List<Sentence> analyzedSentences = Stream.of(sentences).map(s -> {
+                    String[] tokens = tokenizer.tokenize(s);
+                    String[] posTags = posTagger.tag(tokens);
+                    List<PersonName> names = findNames(tokens);
 
-            logger.info("evaluated sentences: {}", Arrays.asList(sentences));
+                    return new Sentence(s, tokens, posTags, names);
+                }).collect(Collectors.toList());
 
-            message.reply(Json.encode(new AnalyzedText(analyzedSentences)));
+                logger.info("evaluated sentences: {}", Arrays.asList(sentences));
+
+                return Observable.just(new AnalyzedText(analyzedSentences));
+            }).flatMap(analyzedText -> saveMessage(id, analyzedText)).subscribe(a -> message.reply(id));
+
         });
 
     }
@@ -168,6 +176,18 @@ public class NlpVerticle extends AbstractVerticle {
         }
 
         return names;
+    }
+
+    private Observable<String> readMessage(String id) {
+        return vertx.sharedData().<String, String>rxGetClusterWideMap(id)
+                .flatMap(map -> map.rxGet(MESSAGE_KEY))
+                .toObservable();
+    }
+
+    private Observable<Void> saveMessage(String id, AnalyzedText analyzedText) {
+        return vertx.sharedData().<String, String>rxGetClusterWideMap(id)
+                .flatMap(map -> map.rxPut(NLP_KEY, Json.encode(analyzedText)))
+                .toObservable();
     }
 
 }
