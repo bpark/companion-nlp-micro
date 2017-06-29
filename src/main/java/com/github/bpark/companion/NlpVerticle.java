@@ -75,47 +75,54 @@ public class NlpVerticle extends AbstractVerticle {
     @Override
     public void start() throws Exception {
 
-        initTokenizer();
-        initNameFinder();
-        initPosTagger();
-        initSentenceDetector();
+        vertx.<Void>rxExecuteBlocking(future -> {
+
+            try {
+
+                initTokenizer();
+                initNameFinder();
+                initPosTagger();
+                initSentenceDetector();
+
+                future.complete();
+
+            } catch (IOException e) {
+                future.fail(e);
+            }
+
+        }).toObservable().subscribe(
+                success -> registerAnalyzer(),
+                error -> logger.error("faild to load nlp models!", error)
+        );
 
         registerAnalyzer();
     }
 
-    private void initTokenizer() {
+    private void initTokenizer() throws IOException {
         try (InputStream modelInToken = NlpVerticle.class.getResourceAsStream(TOKEN_BINARY)) {
             TokenizerModel modelToken = new TokenizerModel(modelInToken);
             tokenizer = new TokenizerME(modelToken);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
         }
     }
 
-    private void initNameFinder() {
+    private void initNameFinder() throws IOException {
         try (InputStream modelIn = NlpVerticle.class.getResourceAsStream(NER_PERSON_BINARY)) {
             TokenNameFinderModel model = new TokenNameFinderModel(modelIn);
             nameFinder = new NameFinderME(model);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
         }
     }
 
-    private void initPosTagger() {
+    private void initPosTagger() throws IOException {
         try (InputStream modelIn = NlpVerticle.class.getResourceAsStream(POS_MAXENT_BINARY)) {
             POSModel model = new POSModel(modelIn);
             posTagger = new POSTaggerME(model);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
         }
     }
 
-    private void initSentenceDetector() {
+    private void initSentenceDetector() throws IOException {
         try (InputStream modelIn = NlpVerticle.class.getResourceAsStream(SENT_BINARY)) {
             SentenceModel model = new SentenceModel(modelIn);
             sentenceDetectorME = new SentenceDetectorME(model);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
         }
     }
 
