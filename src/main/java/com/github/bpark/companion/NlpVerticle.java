@@ -94,8 +94,6 @@ public class NlpVerticle extends AbstractVerticle {
                 success -> registerAnalyzer(),
                 error -> logger.error("faild to load nlp models!", error)
         );
-
-        registerAnalyzer();
     }
 
     private void initTokenizer() throws IOException {
