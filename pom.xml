@@ -11,7 +11,7 @@
 
     <properties>
         <opennlp.version>1.7.0</opennlp.version>
-        <vertx.version>3.4.1</vertx.version>
+        <vertx.version>3.5.0</vertx.version>
         <slf4j.jdk14.version>1.7.25</slf4j.jdk14.version>
 
         <main.verticle>com.github.bpark.companion.NlpVerticle</main.verticle>
@@ -114,6 +114,11 @@
         <dependency>
             <groupId>io.vertx</groupId>
             <artifactId>vertx-core</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>io.vertx</groupId>
+            <artifactId>vertx-web</artifactId>
         </dependency>
 
         <dependency>
